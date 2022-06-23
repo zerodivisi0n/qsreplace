@@ -11,18 +11,16 @@ import (
 )
 
 func main() {
-	var appendMode bool
+	var (
+		appendMode       bool
+		ignorePath       bool
+		wordlistFilename string
+		onlyParamsStr    string
+	)
 	flag.BoolVar(&appendMode, "a", false, "Append the value instead of replacing it")
-
-	var ignorePath bool
 	flag.BoolVar(&ignorePath, "ignore-path", false, "Ignore the path when considering what constitutes a duplicate")
-
-	var wordlistFilename string
 	flag.StringVar(&wordlistFilename, "w", "", "Wordlist with param values")
-
-	var onlyParamsStr string
 	flag.StringVar(&onlyParamsStr, "only-params", "", "Comma-separated list of params to replace (default all)")
-
 	flag.Parse()
 
 	wordlist, err := readWordlist(wordlistFilename)
