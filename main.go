@@ -16,7 +16,20 @@ func main() {
 
 	var ignorePath bool
 	flag.BoolVar(&ignorePath, "ignore-path", false, "Ignore the path when considering what constitutes a duplicate")
+
+	var wordlistFilename string
+	flag.StringVar(&wordlistFilename, "w", "", "Wordlist with param values")
+
 	flag.Parse()
+
+	wordlist, err := readWordlist(wordlistFilename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to read wordlist file %s: %v\n", wordlistFilename, err)
+		os.Exit(1)
+	}
+	if len(wordlist) == 0 {
+		wordlist = []string{flag.Arg(0)}
+	}
 
 	seen := make(map[string]bool)
 
@@ -50,19 +63,51 @@ func main() {
 		}
 		seen[key] = true
 
-		qs := url.Values{}
-		for param, vv := range u.Query() {
-			if appendMode {
-				qs.Set(param, vv[0]+flag.Arg(0))
-			} else {
-				qs.Set(param, flag.Arg(0))
-			}
+		resultQueries := replaceQueryStrings(u.Query(), wordlist, appendMode)
+		for _, rqs := range resultQueries {
+			u.RawQuery = rqs
+			fmt.Printf("%s\n", u)
 		}
-
-		u.RawQuery = qs.Encode()
-
-		fmt.Printf("%s\n", u)
 
 	}
 
+}
+
+func readWordlist(filename string) ([]string, error) {
+	if filename == "" {
+		return nil, nil
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var wordlist []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		wordlist = append(wordlist, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return wordlist, nil
+}
+
+func replaceQueryStrings(input url.Values, wordlist []string, appendMode bool) []string {
+	results := make([]string, 0, len(wordlist))
+	for _, w := range wordlist {
+		qs := url.Values{}
+		for param, vv := range input {
+			if appendMode {
+				qs.Set(param, vv[0]+w)
+			} else {
+				qs.Set(param, w)
+			}
+		}
+		results = append(results, qs.Encode())
+	}
+	return results
 }
