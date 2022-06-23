@@ -20,6 +20,9 @@ func main() {
 	var wordlistFilename string
 	flag.StringVar(&wordlistFilename, "w", "", "Wordlist with param values")
 
+	var onlyParamsStr string
+	flag.StringVar(&onlyParamsStr, "only-params", "", "Comma-separated list of params to replace (default all)")
+
 	flag.Parse()
 
 	wordlist, err := readWordlist(wordlistFilename)
@@ -29,6 +32,13 @@ func main() {
 	}
 	if len(wordlist) == 0 {
 		wordlist = []string{flag.Arg(0)}
+	}
+
+	onlyParams := make(map[string]bool)
+	if len(onlyParamsStr) > 0 {
+		for _, p := range strings.Split(onlyParamsStr, ",") {
+			onlyParams[p] = true
+		}
 	}
 
 	seen := make(map[string]bool)
@@ -63,7 +73,7 @@ func main() {
 		}
 		seen[key] = true
 
-		resultQueries := replaceQueryStrings(u.Query(), wordlist, appendMode)
+		resultQueries := replaceQueryStrings(u.Query(), wordlist, onlyParams, appendMode)
 		for _, rqs := range resultQueries {
 			u.RawQuery = rqs
 			fmt.Printf("%s\n", u)
@@ -96,18 +106,26 @@ func readWordlist(filename string) ([]string, error) {
 	return wordlist, nil
 }
 
-func replaceQueryStrings(input url.Values, wordlist []string, appendMode bool) []string {
+func replaceQueryStrings(input url.Values, wordlist []string, onlyParams map[string]bool, appendMode bool) []string {
 	results := make([]string, 0, len(wordlist))
 	for _, w := range wordlist {
 		qs := url.Values{}
+		replaced := len(onlyParams) == 0
 		for param, vv := range input {
+			if len(onlyParams) > 0 && !onlyParams[param] {
+				qs[param] = vv
+				continue
+			}
 			if appendMode {
 				qs.Set(param, vv[0]+w)
 			} else {
 				qs.Set(param, w)
 			}
+			replaced = true
 		}
-		results = append(results, qs.Encode())
+		if replaced {
+			results = append(results, qs.Encode())
+		}
 	}
 	return results
 }
